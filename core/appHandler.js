@@ -3,7 +3,6 @@ var bCrypt = require('bcrypt')
 const exec = require('child_process').exec;
 var mathjs = require('mathjs')
 var libxmljs = require("libxmljs");
-var serialize = require("node-serialize")
 const Op = db.Sequelize.Op
 
 module.exports.userSearch = function (req, res) {
@@ -185,7 +184,20 @@ module.exports.userEditSubmit = function (req, res) {
 
 module.exports.redirect = function (req, res) {
 	if (req.query.url) {
-		res.redirect(req.query.url)
+		var url = req.query.url
+		// Validate and sanitize: strip control chars that browsers ignore during URL parsing
+		if (typeof url === 'string') {
+			// Remove ASCII control characters (0x00-0x1F, 0x7F) that browsers strip
+			var sanitized = url.replace(/[\x00-\x1f\x7f]/g, '')
+			// Only allow relative paths: must start with / but not // or /\
+			if (sanitized.length > 0 && sanitized.charAt(0) === '/' && sanitized.charAt(1) !== '/' && sanitized.charAt(1) !== '\\') {
+				res.redirect(sanitized)
+			} else {
+				res.status(400).send('invalid redirect url')
+			}
+		} else {
+			res.status(400).send('invalid redirect url')
+		}
 	} else {
 		res.send('invalid redirect url')
 	}
@@ -215,7 +227,7 @@ module.exports.listUsersAPI = function (req, res) {
 module.exports.bulkProductsLegacy = function (req,res){
 	// TODO: Deprecate this soon
 	if(req.files.products){
-		var products = serialize.unserialize(req.files.products.data.toString('utf8'))
+		var products = JSON.parse(req.files.products.data.toString('utf8'))
 		products.forEach( function (product) {
 			var newProduct = new db.Product()
 			newProduct.name = product.name
